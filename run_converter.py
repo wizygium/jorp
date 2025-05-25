@@ -43,7 +43,7 @@ def main():
             adjusted_args.append(arg)
 
     cmd = [
-        "python3", "-m", "src.main"
+        "python", "-m", "src.main"
     ] + adjusted_args
     
     verbose = "--verbose" in adjusted_args or "-v" in adjusted_args

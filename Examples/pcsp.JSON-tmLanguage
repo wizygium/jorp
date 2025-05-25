@@ -1,0 +1,22 @@
+{
+  "scopeName": "source.probabilitycspmodel",
+  "fileTypes": [
+    "pcsp"
+  ],
+  "name": "Probability CSP Model",
+  "patterns": [
+    {
+      "include": "#numbers"
+    }
+  ],
+  "repository": {
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.probabilitycspmodel",
+          "match": "\\b\\d+(\\.\\d+)?\\b"
+        }
+      ]
+    }
+  }
+}
