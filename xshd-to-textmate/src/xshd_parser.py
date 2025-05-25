@@ -37,6 +37,20 @@ def parse_xshd(file_path: str):
         if extensions_str:
             syntax_info["extensions"] = [ext.strip() for ext in extensions_str.split(';') if ext.strip()]
 
+        # Parse Properties for comment definitions
+        properties_element = root.find("Properties")
+        if properties_element is not None:
+            for prop_element in properties_element.findall("Property"):
+                prop_name = prop_element.get("name")
+                prop_value = prop_element.get("value")
+                if prop_value: # Ensure value is not None or empty
+                    if prop_name == "LineComment":
+                        syntax_info["comments"]["line_comment_start"].append(prop_value)
+                    elif prop_name == "BlockCommentBegin":
+                        syntax_info["comments"]["block_comment_start"].append(prop_value)
+                    elif prop_name == "BlockCommentEnd":
+                        syntax_info["comments"]["block_comment_end"].append(prop_value)
+
         # Find Digits element
         digits_element = root.find("Digits")
         if digits_element is not None:
@@ -49,7 +63,7 @@ def parse_xshd(file_path: str):
         
         # Process RuleSet elements (assuming one main RuleSet for now, can be extended)
         # XSHD can have nested RuleSets, but we'll start with the top-level ones.
-        for ruleset_element in root.findall("RuleSet"):
+        for ruleset_element in root.findall("RuleSets/RuleSet"): # Corrected path
             rs_info = {
                 "ignorecase": ruleset_element.get("ignorecase", "false").lower() == "true",
                 "delimiters": None,
@@ -105,7 +119,9 @@ def parse_xshd(file_path: str):
                 if "comment" in name_lower or "comment" in rule_lower:
                     if span_info["stopateol"] and span_info["begin"]: # Line comment
                         syntax_info["comments"]["line_comment_start"].append(span_info["begin"])
-                    elif span_info["multiline"] and span_info["begin"] and span_info["end"]: # Block comment
+                    # Improved condition for block comments
+                    elif span_info["begin"] and span_info["end"] and \
+                         (span_info.get("multiline") or not span_info.get("stopateol", True)):
                         syntax_info["comments"]["block_comment_start"].append(span_info["begin"])
                         syntax_info["comments"]["block_comment_end"].append(span_info["end"])
                 
@@ -136,60 +152,19 @@ def parse_xshd(file_path: str):
         return None
 
 if __name__ == '__main__':
-    # Example usage (for testing purposes)
-    # Create a dummy .xshd file for testing
-    dummy_xshd_content = """<?xml version="1.0"?>
-    <SyntaxDefinition name="Python" extensions=".py;.pyw">
-        <Digits name="Digits" color="DarkBlue"/>
-        <RuleSet ignorecase="false">
-            <Delimiters>&amp;()[]{}&lt;&gt;%:;.,=</Delimiters>
-            <Span name="LineComment" rule="Comment" color="Green" stopateol="true">
-                <Begin>#</Begin>
-            </Span>
-            <Span name="BlockComment" rule="Comment" color="Green" multiline="true">
-                <Begin>\"\"\"</Begin>
-                <End>\"\"\"</End>
-            </Span>
-            <Span name="String" rule="String" color="Sienna" stopateol="true">
-                <Begin>"</Begin>
-                <End>"</End>
-            </Span>
-            <Span name="Char" rule="Char" color="Sienna" stopateol="true">
-                <Begin>'</Begin>
-                <End>'</End>
-            </Span>
-            <KeyWords name="Keywords" bold="true" italic="false" color="Blue">
-                <Key word="def"/>
-                <Key word="class"/>
-                <Key word="if"/>
-                <Key word="else"/>
-                <Key word="elif"/>
-                <Key word="return"/>
-            </KeyWords>
-            <KeyWords name="UserKeywords" bold="true" italic="false" color="DarkMagenta">
-                <Key word="self"/>
-                <Key word="True"/>
-                <Key word="False"/>
-                <Key word="None"/>
-            </KeyWords>
-        </RuleSet>
-    </SyntaxDefinition>
-    """
-    with open("dummy.xshd", "w") as f:
-        f.write(dummy_xshd_content)
-    
-    parsed_data = parse_xshd("dummy.xshd")
-    if parsed_data:
-        print("Successfully parsed dummy.xshd:")
-        import json
-        print(json.dumps(parsed_data, indent=2))
-    
-    # Test with a non-existent file
-    print("\nTesting with a non-existent file:")
-    parse_xshd("non_existent.xshd")
+    import argparse
+    import json
+    import sys
 
-    # Test with an invalid XML file
-    with open("invalid.xshd", "w") as f:
-        f.write("<root><open></root>") # Intentionally invalid XML
-    print("\nTesting with an invalid XML file:")
-    parse_xshd("invalid.xshd")
+    parser = argparse.ArgumentParser(description="Parse an .xshd file and output its syntax information as JSON.")
+    parser.add_argument("file_path", help="The path to the .xshd file")
+    args = parser.parse_args()
+
+    syntax_info = parse_xshd(args.file_path)
+
+    if syntax_info:
+        print(json.dumps(syntax_info, indent=4))
+    else:
+        # Error messages are already printed by parse_xshd in case of failure
+        # Exit with an error code
+        sys.exit(1)
