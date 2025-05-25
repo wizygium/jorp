@@ -6,15 +6,124 @@
   "name": "Probability CSP Model",
   "patterns": [
     {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
       "include": "#numbers"
+    },
+    {
+      "include": "#custom_spans"
     }
   ],
   "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.//.probabilitycspmodel",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.probabilitycspmodel",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "patterns": [
+            {
+              "include": "#self"
+            }
+          ]
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.string.probabilitycspmodel",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "match": "\\\\.",
+              "name": "constant.character.escape.probabilitycspmodel"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.character.probabilitycspmodel.no-multiline",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "match": "\\\\.",
+              "name": "constant.character.escape.probabilitycspmodel"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.string.probabilitycspmodel",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "match": "\\\\.",
+              "name": "constant.character.escape.probabilitycspmodel"
+            }
+          ]
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.other.probabilitycspmodel",
+          "match": "\\b(xor|!|#|%|&|\\*|\\+|\\-|/|<|=|>|\\?|\\[|\\]|\\^|\\||~)\\b"
+        },
+        {
+          "name": "keyword.control.probabilitycspmodel",
+          "match": "\\b(interrupt|alphabet|channel|default|include|assert|atomic|define|import|reward|false|pcase|while|call|case|else|enum|hvar|init|true|ifa|ifb|new|tau|var|if)\\b"
+        },
+        {
+          "name": "keyword.other.probabilitycspmodel",
+          "match": "\\b(Skip|Stop)\\b"
+        },
+        {
+          "name": "keyword.other.probabilitycspmodel",
+          "match": "\\b(ccount|cempty|cfull|cpeek|csize)\\b"
+        },
+        {
+          "name": "keyword.other.probabilitycspmodel",
+          "match": "\\b(\\->|\\|=|&|\\-|<|=|>|F|G|R|U|V|X|\\[|\\]|\\|)\\b"
+        },
+        {
+          "name": "keyword.control.probabilitycspmodel",
+          "match": "\\b(divergencefree|nonterminating|deterministic|deadlockfree|refines<FD>|refines<F>|reaches|refines|assert|define|reward|alpha|false|sigma|theta|<FD>|beta|init|pmax|pmin|prob|true|with|<F>|max|min|tau)\\b"
+        }
+      ]
+    },
     "numbers": {
       "patterns": [
         {
           "name": "constant.numeric.probabilitycspmodel",
           "match": "\\b\\d+(\\.\\d+)?\\b"
+        }
+      ]
+    },
+    "custom_spans": {
+      "patterns": [
+        {
+          "name": "meta.assertion.probabilitycspmodel",
+          "begin": "assert",
+          "end": ";",
+          "patterns": [
+            {
+              "include": "#self"
+            }
+          ]
         }
       ]
     }
