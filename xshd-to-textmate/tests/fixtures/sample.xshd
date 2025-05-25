@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<SyntaxDefinition name="SampleLang" extensions=".spl">
+    <Digits name="Numbers" color="Blue" bold="true"/>
+    <RuleSet ignorecase="true">
+        <Delimiters>&amp;()[]{}&lt;&gt;%:;.,=+-*/</Delimiters>
+        
+        <Span name="LineComment" rule="Comment" color="Green" stopateol="true">
+            <Begin>//</Begin>
+        </Span>
+        
+        <Span name="BlockComment" rule="Comment" color="Green" multiline="true">
+            <Begin>/*</Begin>
+            <End>*/</End>
+        </Span>
+
+        <Span name="DocComment" rule="Comment" color="DarkGreen" multiline="true" bold="false" italic="true">
+            <Begin>/**</Begin>
+            <End>*/</End>
+        </Span>
+        
+        <Span name="String" rule="String" color="Red" stopateol="false">
+            <Begin>"</Begin>
+            <End>"</End>
+        </Span>
+        
+        <Span name="Char" rule="Char" color="Red" stopateol="true">
+            <Begin>'</Begin>
+            <End>'</End>
+        </Span>
+
+        <Span name="Preprocessor" rule="Preprocessor" color="Purple" stopateol="true">
+            <Begin>#</Begin>
+        </Span>
+
+        <Span name="Region" rule="Region" color="Gray">
+            <Begin>#region</Begin>
+            <End>#endregion</End>
+        </Span>
+        
+        <KeyWords name="Keywords" bold="true" color="Navy">
+            <Key word="if"/>
+            <Key word="else"/>
+            <Key word="while"/>
+            <Key word="return"/>
+        </KeyWords>
+        
+        <KeyWords name="Types" color="DarkCyan">
+            <Key word="int"/>
+            <Key word="string"/>
+            <Key word="bool"/>
+        </KeyWords>
+
+        <KeyWords name="Constants" color="DarkMagenta">
+            <Key word="TRUE"/>
+            <Key word="FALSE"/>
+            <Key word="NULL"/>
+        </KeyWords>
+    </RuleSet>
+
+    <RuleSet name="InactiveContext" ignorecase="true" referenceRule="Comment">
+         <KeyWords name="InactiveKeywords" color="Gray">
+            <Key word="todo"/>
+            <Key word="fixme"/>
+        </KeyWords>
+    </RuleSet>
+</SyntaxDefinition>

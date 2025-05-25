@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<SyntaxDefinition name="Python" extensions=".py;.pyw">
+    <Digits name="Digits" color="DarkBlue"/>
+    <RuleSet ignorecase="false">
+        <Delimiters>&amp;()[]{}&lt;&gt;%:;.,=</Delimiters>
+        <Span name="LineComment" rule="Comment" color="Green" stopateol="true">
+            <Begin>#</Begin>
+        </Span>
+        <Span name="BlockComment" rule="Comment" color="Green" multiline="true">
+            <Begin>\"\"\"</Begin>
+            <End>\"\"\"</End>
+        </Span>
+        <Span name="String" rule="String" color="Sienna" stopateol="true">
+            <Begin>"</Begin>
+            <End>"</End>
+        </Span>
+        <Span name="Char" rule="Char" color="Sienna" stopateol="true">
+            <Begin>'</Begin>
+            <End>'</End>
+        </Span>
+        <KeyWords name="Keywords" bold="true" italic="false" color="Blue">
+            <Key word="def"/>
+            <Key word="class"/>
+            <Key word="if"/>
+            <Key word="else"/>
+            <Key word="elif"/>
+            <Key word="return"/>
+        </KeyWords>
+        <KeyWords name="UserKeywords" bold="true" italic="false" color="DarkMagenta">
+            <Key word="self"/>
+            <Key word="True"/>
+            <Key word="False"/>
+            <Key word="None"/>
+        </KeyWords>
+    </RuleSet>
+</SyntaxDefinition>
