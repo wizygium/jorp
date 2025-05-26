@@ -1,0 +1,7 @@
+"customSyntaxes.grammars": [
+  {
+    "scopeName": "source.pcsp",
+    "path": "c:/Users/lukewildman/Projects/jorp/Examples/pcsp.JSON-tmLanguage",
+    "language": "pcsp"
+  }
+]

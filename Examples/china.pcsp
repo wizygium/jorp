@@ -1,0 +1,1263 @@
+﻿// BHC
+
+// TODO
+// Put back in phases 0-3 and FB
+// Phase 0 Move attackers into CW-RW loca, move defenders to locs
+// e.g.     aloc = [1, 9, 10, 11,5],   dloc= [1,2,3,4,5,10] (depending on ball and defence)
+// Phase 1 decide 2nd pivot, back switch (or both) and move
+// e.g.     aloc = [3,8,10,11,5]  dloc = [1,2,3, 3, 4, 5]  (assuming d10 pulls back 
+// Phase 2 setup : eX, PVx, CxL, CxR, passes   (specific combinations)
+//
+// Phase 3 execute single play
+
+// attacking player roles
+// index to array of locations and player assignments.
+
+#define lw 0;
+#define lb 1;
+#define cb 2;
+#define rb 3;
+#define rw 4;
+#define pv 5;
+#define gk 6;
+#define pv2 7;
+
+
+#define N 12;
+#define p1 0; // 17  LW
+#define p2 1; // 13  RB
+#define p3 2; // 8
+#define p4 3; // 52  CB
+#define p5 4;  //5   RW
+#define p6 5; // 20  PV
+#define p7 6; // 2
+#define p8 7; // 19  LB
+#define p9 8;  // X
+#define p10 9; // X
+#define p11 10; // GK
+#define pnull 11; // vacant  PV2
+
+// Zones around the goal area
+//  1   0   5
+//    2 3 4 
+//  8   7   6
+//  --------
+// 9   10   11
+//     12
+// goal = 0
+// out/handover = 13
+
+#define Z 14;  //zones around the D
+
+#define zgoal 0;  //goal
+#define z1 1;  
+#define z2 2;
+#define z3 3;
+#define z4 4;
+#define z5 5;
+#define z6 6;
+#define z7 7;   
+#define z8 8;
+#define z9 9;
+#define z10 10;
+#define z11 11;
+#define z12 12;
+#define zout 13;  // out or turn over
+
+// defenders - represented by an array of locations
+// indexes of defenders: d6 defends 1
+#define d1 0;  // defence section d1 (lw) ... 
+#define d2 1;  // d2 (lb)
+#define d3 2;  // d3 (pv)
+#define d4 3;  // d4 (rb)
+#define d5 4;  // d5 (rw)
+#define d6 5;  // d6 (pv or cb)
+
+#define maxpass 5;    // max number of passes (otherwise its passive play)
+
+var ball = z10;
+
+// attacking player positions
+//            LW,LB,CB, RB, RW, PV, PV2, GK]
+                
+var aloc[8] = [z1,z9,z10,z11,z5,z2,zout, zgoal];
+
+//defenders = [d1,d2,d3,d3,d4,d5];
+
+var dloc[6] = [z1,z2,z3,z4,z5,z3];
+
+//map from attacking locations (zi) to defence position di
+//          zgoal z1 z2 z3 z4 z5 z6 z7 z8 z9 z10 z11 z12 zout
+var admap[Z] = [0,d1,d2,d3,d4,d5,d4,d3,d2,d2,d3, d4, d3, 0];   
+
+// gaps     d1 d2 d3 d4 d5 d6  - d6 is in front
+var gap[6] = [0,0,0,0,0,0];
+
+// position/role played by player
+//           LW  LB CB RB RW PV PV2 GK
+var pos[8] = [p1,p8,p4,p2,p5,p6,pnull,p11 ];
+
+// Short pass Success probability per player as for shot_effect	
+// p1 .. p12
+
+//#include "vezprem.pcsp";
+// Szeged P 5%  attacks 54 
+// M 14%
+// var short_pass_succ[N] =  [985(N)]; //,983,983,983,983,988,988,988,988,988,988,988];
+
+// Long pass Success - double error rate			
+
+// var long_pass_succ[N] =  [970(N)]; //,976,976,976,976,976,976,976,976,976,976,976];
+
+// Pivot pass Success - much lower as defence can intercept			
+
+// var pivot_pass_succ[N] =  [955(N)]; //,944,944,944,944,944,944,944,944,944,944,944];
+
+// shot effect by position giving scoring probability/percentage assuming average goal keeper. Handedness incorporated. 
+// col number      
+//P1  P2  P3  P4  P5  P6  P7  P8  P9  P10 P11 P12    /   Player/Zone
+//var shot_effect[Z-2][N]= [
+// 75(N),// 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30,// LW z1
+// 29(N),// 53, 53, 53, 53, 53, 53, 53, 53, 53, 53, 53,// 2  z2
+// 54(N),// 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60,// PV z3
+// 24(N),// 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29,// 4  z4
+// 20(N),// 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33,// RW z5				
+// 20(N),// 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30,// RB z6   - minimum assumptiontion
+// 11(N),// 44, 44, 44, 44, 44, 44, 44, 44, 44, 44, 44,// CB z7
+// 20(N),// 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30,// LB z8
+// 40(N),// 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33,// LBL z9
+// 20(N),// 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,// CBL z10
+// 20(N),// 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33,// RBL z11
+// 50(N)//, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 // DEF z12
+// ];
+					
+// var mov_succ[N] = [950(N)]; //,860,860,860,860,860,860,860,860,860,860,860];					
+
+//var cross_succ[N] = [90,90,90,90,90,90,90,90,90,90,90,90];
+//var intercept_succ[N] = [50,50,50,50,50,50,50,50,50,50,50,50];
+
+var score = 0;
+
+#define shz1 75;
+#define shz2 29;
+#define shz3 54;
+#define shz4 24;
+#define shz5 20;
+#define shz6 20;
+#define shz7 11;
+#define shz8 20;
+#define shz9 40;
+#define shz10 20;
+#define shz11 20;
+#define shz12 50;
+
+
+
+shot(n) =  case {
+  ball == z1 : pcase {
+        shz1 : goal {ball = zgoal; score++} -> Skip
+    100-shz1 : miss {ball = zout} -> Skip
+    }
+  ball == z2 : pcase {
+        shz2 : goal {ball = zgoal; score++} -> Skip
+    100-shz2 : miss {ball = zout} -> Skip
+    }
+  ball == z3 : pcase {
+        shz3 : goal {ball = zgoal; score++} -> Skip
+    100-shz3 : miss {ball = zout} -> Skip
+    }
+  ball == z4 : pcase {
+        shz4 : goal {ball = zgoal; score++} -> Skip
+    100-shz4 : miss {ball = zout} -> Skip
+    }
+  ball == z5 : pcase {
+        shz5 : goal {ball = zgoal; score++} -> Skip
+    100-shz5 : miss {ball = zout} -> Skip
+    }
+  ball == z6 : pcase {
+        shz6 : goal {ball = zgoal; score++} -> Skip
+    100-shz6 : miss {ball = zout} -> Skip
+    }
+  ball == z7 : pcase {
+        shz7 : goal {ball = zgoal; score++} -> Skip
+    100-shz7 : miss {ball = zout} -> Skip
+    }
+  ball == z8 : pcase {
+        shz8 : goal {ball = zgoal; score++} -> Skip
+    100-shz8 : miss {ball = zout} -> Skip
+    }
+  ball == z9 : pcase {
+        shz9 : goal {ball = zgoal; score++} -> Skip
+    100-shz9 : miss {ball = zout} -> Skip
+    }
+  ball == z10 : pcase {
+        shz10 : goal {ball = zgoal; score++} -> Skip
+    100-shz10 : miss {ball = zout} -> Skip
+    }
+  ball == z11 : pcase {
+        shz11 : goal {ball = zgoal; score++} -> Skip
+    100-shz11 : miss {ball = zout} -> Skip
+    }
+  ball == z12 : pcase {
+        shz12 : goal {ball = zgoal; score++} -> Skip
+    100-shz12 : miss {ball = zout} -> Skip
+    }
+  };
+    
+ 
+	
+//shot(n) =  pcase {
+//   shot_effect[ball-1][pos[n]]   : goal {ball = zgoal; score++} -> Skip
+//   100-shot_effect[ball-1][pos[n]] : miss {ball = zout} -> Skip
+//   };
+   
+channel spass 0;
+channel lpass 0;
+channel ppass 0;
+channel mov 0;
+channel movb 0;
+
+#define spsucc 985;
+
+short_pass(pl, rp) = pcase {                                                   //  player pl decides to pass to ball position b
+ spsucc: spass!pl.rp -> {ball = aloc[rp]; pass++} -> Skip   // Successfull short Pass; ball goes to position b; #pass up by 1
+ 1000-spsucc : to.pl {ball = zout} -> Skip         // Failed short pass; ball goes out or is turnover
+};
+
+//short_pass(pl, rp) = pcase {                                                   //  player pl decides to pass to ball position b
+// short_pass_succ[pos[pl]] : spass!pl.rp -> {ball = aloc[rp]; pass++} -> Skip   // Successfull short Pass; ball goes to position b; #pass up by 1
+// 1000-short_pass_succ[pos[pl]] : to.pl {ball = zout} -> Skip         // Failed short pass; ball goes out or is turnover
+//};
+
+
+// long pass has a chance of intercept if defender at rp
+// TODO create a variant where the defender is nearby
+
+#define lpsucc 970;
+
+long_pass(pl, rp) =
+pcase {
+ lpsucc: lpass!pl.rp -> {ball = aloc[rp]; pass++} ->  Skip
+ 1000-lpsucc : to.pl {ball = zout} -> Skip
+};
+
+//long_pass(pl, rp) =
+//pcase {
+// long_pass_succ[pos[pl]] : lpass!pl.rp -> {ball = aloc[rp]; pass++} ->  Skip
+// 1000-long_pass_succ[pos[pl]] : to.pl {ball = zout} -> Skip
+//};
+
+//defat - there is a defender at loc
+// TODO - wwong approach - do it in the defender process
+
+//#define defat(l) {dloc[d1] == l}; 
+
+//long_pass_def(pl, rp) =
+//  if(call(defat,aloc[rp]) == 1) {
+//   pcase {
+// 	long_pass_succ[pos[pl]] : lpass.pl.rp {ball = aloc[rp]; pass++} ->  Skip
+// 	100-long_pass_succ[pos[pl]] : to.pl {ball = zout} -> Skip
+// 	intercept_succ[d1] : to.pl {ball = zout} -> Skip
+//    } 
+//    } else { long_pass(pl,rp) };
+
+// TODO need to add in possibility of defender intercepting.
+
+#define ppsucc 955;
+
+pivot_pass(pl, rp) =
+pcase {
+ ppsucc : ppass!pl.rp -> {ball = aloc[rp]; pass++} ->  Skip
+ 1000-ppsucc : to.pl {ball = zout} -> Skip
+};
+
+//pivot_pass(pl, rp) =
+//pcase {
+// pivot_pass_succ[pos[pl]] : ppass!pl.rp -> {ball = aloc[rp]; pass++} ->  Skip
+// 1000-pivot_pass_succ[pos[pl]] : to.pl {ball = zout} -> Skip
+//};
+
+// Move with ball - has risk of error (double, or steps)
+// TODO have defender process follow players with ball
+
+#define msucc 950;
+
+move_wball(pl,d) =
+pcase {
+   msucc : movb!pl.d -> {aloc[pl] = d; ball = d} -> Skip
+   1000-msucc : to.pl{ball = zout} -> Skip
+ };
+ 
+//move_wball(pl,d) =
+//pcase {
+//   mov_succ[pos[pl]] : movb!pl.d -> {aloc[pl] = d; ball = d} -> Skip
+//   1000-mov_succ[pos[pl]] : to.pl{ball = zout} -> Skip
+// };
+ 
+// attacker move no ball
+
+ move(pl,d) =
+   mov!pl.d -> {aloc[pl] = d} -> Skip; 
+ 
+// A simple cross - ball exchanges and roles changes
+// TODO could also add new loc of pl and rv - or just have them swap.
+// note if I make this atomic then defence doesn't react during cross
+// Note the motion of pl and rv is needed
+
+#define switch(pl, rv) {var t = pos[pl]; pos[pl] = pos[rv]; pos[rv]=t} ; 
+
+#define trans(pl, rv) {pos[rv]=pos[pl]; pos[pl] = pnull; aloc[rv] = aloc[pl]; aloc[pl] = zout}  ; 
+
+
+//cross(pl,rv) = pcase {
+// cross_succ[pos[pl]] : cx.pl.rv {call(switch, pl, rv); ball = aloc[rv];pass++} -> Skip
+// 100-cross_succ[pos[pl]] : to.pl {ball = zout} -> Skip
+// };
+
+// empty cross involves three players. 
+// pl - initiator
+// rv1 - player who receives the ball with a long pass
+// rv2 - player who switches role with pl
+// TODO could add location l for the position of rv2, or also pl, or just have them swap loc
+
+//emptyX(pl,rv1,rv2) = pcase {
+//  long_pass_succ[pos[pl]] : ex.pl.rv1 {call(switch, pl, rv2); ball = aloc[rv1];pass++} -> Skip
+//  100 - long_pass_succ[pos[pl]] : to.pl{ball = zout} -> Skip
+//  };
+  
+//  bugs  can't count on continuation after move_wball either trap at move
+//  or combine into one error 
+// or leave it as a move doen't matter, only passes
+
+
+// pivot cross
+// pivot moves out
+// CB passes to PV  - short pass
+// PV passes RB - short pass
+// CB switches with LB 
+// PV moves back to line
+// RB passes to LB(now CB) or PV 
+// this is just an empty cross with a short pass 
+// followed by pivot moves (assuming PV moves back to line if has the ball at 10)
+
+//pvX(rv) = move(pv,z10); short_pass(cb, pv); call(switch,cb,rv); PV; 
+//pvXL = move(pv, z10); emptyX(cb,pv,lb); move(lb,z9); move(cb,z10); PV;  
+//pvXR = move(pv, z10); emptyX(cb,pv,rb); move(rb,z11); move(cb,z10); PV;  
+
+// count the number of passes - to check they dont exceed maxpass
+
+var pass = 0;
+
+// Variable tracking a gap in defence; initially at LW
+// Note defender position not tracked - assumed to be not at gap
+
+#define inplay (ball > zgoal && ball < zout && pass < maxpass);
+
+
+// should probably allow move to z3
+
+CB2 =  [aloc[cb] == z2 && ball == z2]
+  case {
+    gap[d2] == 1 :  cb_openshot -> shot(cb)
+    gap[d2] == 0 : pcase {
+      50: cb_shot -> shot(cb)
+      50: cbm7 -> move_wball(cb, z7)
+   }
+};
+
+CB3 =  [aloc[cb] == z3 && ball == z3]
+  case {
+    gap[d3] == 1 :  cb_openshot -> shot(cb)
+    gap[d3] == 0 : pcase {
+      50: cb_shot -> shot(cb)
+      50: cbm7 -> move_wball(cb, z7)
+   }
+};
+
+CB4 =  [aloc[cb] == z4 && ball == z4]
+  case {
+    gap[d4] == 1 :  cb_openshot -> shot(cb)
+    gap[d4] == 0 : pcase {
+      50: cb_shot -> shot(cb)
+      50: cbm7 -> move_wball(cb, z7)
+   }
+};
+
+CB7 = [aloc[cb] == z7 && ball == z7]   // need to consider gap[d6] it would interfere with passes to pivot(s)
+ case {
+   gap[d3] == 1 && aloc[pv] == z3 : pcase {
+      10: cb_openshot -> shot(cb)
+      75: cb_pv -> short_pass(cb, pv); PV
+      5: cb_lb -> short_pass(cb, lb); LB                 
+      5: cb_rb -> short_pass(cb, rb); RB 
+      5: cbm3 -> move_wball(cb, z3); CB
+    }
+   gap[d2] == 1 && aloc[pv] == z2 : pcase {
+      10: cb_openshot -> shot(cb)
+      75: cb_pv -> short_pass(cb, pv); PV
+      5: cb_lb -> short_pass(cb, lb); LB                  
+      5: cb_rb -> short_pass(cb, rb); RB  
+      5: cbm2 -> move_wball(cb, z2); CB
+    } 
+    gap[d4] == 1 && aloc[pv] == z4: pcase {
+      10: cb_openshot -> shot(cb)
+      75: cb_pv -> short_pass(cb, pv); PV
+      5: cb_lb -> short_pass(cb, lb); LB                  
+      5: cb_rb -> short_pass(cb, rb); RB 
+      5: cbm4 -> move_wball(cb, z4); CB
+    }
+   gap[d3] == 1 : pcase {
+      16: cb_openshot -> shot(cb)
+      50: cb_m3 -> move_wball(cb,z3); CB                 // CB steps through gap
+      4: cb_pv -> pivot_pass(cb, pv); PV                   // PV not in gap but may be next to a GAP
+      15: cb_lb -> short_pass(cb, lb); LB                 
+      15: cb_rb -> short_pass(cb, rb); RB   
+    }
+   gap[d3] == 0 : pcase {
+      30: cb_lb -> short_pass(cb, lb); LB                  // CB decides to pass to Left Back at position 7
+      30: cb_rb -> short_pass(cb, rb); RB                  // CB decides to pass to Right Back at position 9
+      20 : cb_pv -> pivot_pass(cb, pv); PV
+      2 : cb_lw -> long_pass(cb, lw); LW
+      2 : cb_rw -> long_pass(cb, rw); RW
+      16 : cb_shot -> shot(cb) 
+ }  default : undef -> Skip };
+ 
+ //CB7 - needs to add PV2 + needs to allow step back to z10, z8, z9
+ //CB7 - needs to add D6 - (covers z10 and z7) - would prevent cb_openshot from z7
+ //CB7 - D6 makes it hard to pass to pivot(s)
+ //CB3 - D6 prevents move to z3
+ 
+ //CB10 D6 prevents move to z7
+ //CB10 D6 makes the pass to the pivot(s) harder
+
+#define CBat10 aloc[cb] == z10 && ball == z10;
+
+#define backsok aloc[lb] == z9 && aloc[rb] == z11;
+
+#define nil 0;
+#define l2pv 1;
+#define r2pv 2;
+#define lpvx 3;
+#define rpvx 4;
+#define lex 5;
+#define rex 6;
+#define lx 7;
+#define rx 8;
+
+var play : {0..} = nil;
+
+CB10PC = [CBat10 && play == nil] pcase {
+    [0.05]: lw2pvd {play = l2pv} -> CB
+    [0.05]: rw2pvd {play = r2pv} -> CB
+    [0]: lcbexd {play = lex} -> CB
+    [0]: rcbexd {play = rex} -> CB
+    [0.035]: lpvxd {play = lpvx} -> CB
+    [0.035]: rpvxd {play = rpvx} -> CB
+    [0.02]: lxd {play = lx} -> CB
+    [0.02]: rxd {play = rx} -> CB
+    default: CB
+};
+ 
+CB10gaps = [CBat10] 
+ case {
+   gap[d3] == 1 && aloc[pv] == z3 : pcase {
+      12: cb_openshot -> shot(cb)
+      50: cb_pv -> short_pass(cb, pv); PV
+      19: cb_lb -> short_pass(cb, lb); LB                 
+      19: cb_rb -> short_pass(cb, rb); RB   
+    }
+   gap[d2] == 1 && aloc[pv] == z2 : pcase {
+      12: cb_shot -> shot(cb)
+      50: cb_pv -> short_pass(cb, pv); PV
+      20: cb_lb -> short_pass(cb, lb); LB                  
+      8:  cb_rb -> short_pass(cb, rb); RB   
+    } 
+    gap[d4] == 1 && aloc[pv] == z4: pcase {
+      12: cb_shot -> shot(cb)
+      50: cb_pv -> short_pass(cb, pv); PV
+      8: cb_lb -> short_pass(cb, lb); LB                  
+      20: cb_rb -> short_pass(cb, rb); RB   
+    }
+    gap[d3] == 1 && aloc[pv2] == z3 : pcase {
+      12: cb_openshot -> shot(cb)
+      50: cb_pv2 -> short_pass(cb, pv2); PV2
+      19: cb_lb -> short_pass(cb, lb); LB                 
+      19: cb_rb -> short_pass(cb, rb); RB   
+    }
+    gap[d2] == 1 && aloc[pv2] == z2 : pcase {
+      12:  cb_shot -> shot(cb)
+      60: cb_pv2 -> short_pass(cb, pv2); PV2
+      19: cb_lb -> short_pass(cb, lb); LB                  
+      19: cb_rb -> short_pass(cb, rb); RB   
+    } 
+    gap[d4] == 1 && aloc[pv2] == z4: pcase {
+      12: cb_shot -> shot(cb)
+      60: cb_pv2 -> short_pass(cb, pv2); PV2
+      19: cb_lb -> short_pass(cb, lb); LB                  
+      19: cb_rb -> short_pass(cb, rb); RB   
+    }
+   gap[d3] == 1 : pcase {
+      30: cbm7-> move_wball(cb,z7); CB
+      12: cb_openshot -> shot(cb)
+      10: cb_pv -> pivot_pass(cb, pv); PV                  // PV and gap not at z2 z3 z4 , PV probably next to a gap
+      24: cb_lb -> short_pass(cb, lb); LB                  // CB decides to pass to Left Back at position 7
+      24: cb_rb -> short_pass(cb, rb); RB   
+    }
+   gap[d1] == 1 && aloc[lw] == z1 : pcase {
+      30: cb_lb -> short_pass(cb, lb); LB                 
+      30: cb_rb -> short_pass(cb, rb); RB                 
+      8 : cb_pv -> pivot_pass(cb, pv); PV
+      20 : cb_lw -> long_pass(cb, lw); LW                    // Sees gap on wing     
+      12 : cb_shot -> shot(cb) 
+    }
+   gap[d5] == 1 && aloc[rw] == z5 : pcase {
+      30: cb_lb -> short_pass(cb, lb); LB                  
+      30: cb_rb -> short_pass(cb, rb); RB                  
+      8 : cb_pv -> pivot_pass(cb, pv); PV
+      20 : cb_rw -> long_pass(cb, rw); RW                      // Sees gap on wing
+      12 : cb_shot -> shot(cb) 
+    } 
+   default : undef -> Skip }; 
+   
+   CB10Play = [CBat10 && play != nil]  
+    case {
+      play == l2pv && aloc[lw] == z1 && backsok : lw2pv -> move(lw,z10); cb_lw -> short_pass(cb, lw); LW2PV
+      play == r2pv && aloc[rw] == z5 && backsok : rw2pv -> move(rw,z10); cb_rw -> short_pass(cb, rw); RW2PV
+      play == lex && backsok : cbexl -> cbm9 -> move_wball(cb,z9); CBEXL 
+      play == rex && backsok : cbexr -> cbm11-> move_wball(cb,z11); CBEXR 
+      play == lpvx && backsok : pvxl -> move(pv,z10); cb_pv -> short_pass(cb, pv); PVXL 
+      play == rpvx && backsok : pvxr -> move(pv,z10); cb_pv -> short_pass(cb, pv); PVXR   
+      play == lx && backsok : cbxl -> cbm8 -> move_wball(cb,z8); CBXL
+      play == rx && backsok : cbxr -> cbm6 -> move_wball(cb,z6); CBXR
+      default  : CB10
+    };  
+      
+    CB10 = [CBat10] pcase {       // CB is at 10, but LB, RB, LW, RW are not in place for X move,
+      22: cb_lb -> short_pass(cb, lb); LB    // pass the ball or move with ball              
+      22: cb_rb -> short_pass(cb, rb); RB    // maybe need to move off ball ?
+//      12: cbm9 -> move_wball(cb, z9); CB   // these add complexity and aren't used in pratice
+//      12: cbm11 -> move_wball(cb, z11); CB
+      22: cbm7 -> move_wball(cb, z7); CB
+      3 : cb_shot -> shot(cb) 
+    }; 
+    
+   
+CBEXL = [inplay] long_pass(cb, rb); sw.cb.lb{call(switch,cb,lb)} -> cbm10 -> move(cb,z10) ; RB;
+
+CBEXR = [inplay] long_pass(cb, lb); sw.cb.rb{call(switch,cb,rb)} -> cbm10 -> move(cb,z10) ; LB;
+
+PVXL = [inplay] sw.cb.lb{call(switch,cb,lb)} -> cbm10 -> move(cb,z10) ; PVR10;
+
+PVXR = [inplay] sw.cb.rb{call(switch,cb,rb)} -> cbm10 -> move(cb,z10) ; PVL10;
+
+LW2PV = [inplay] sw.cb.lb{call(switch,cb,lb)} -> cbm10 -> move(cb,z10) ; LWR10;
+
+RW2PV = [inplay] sw.cb.rb{call(switch,cb,rb)} -> cbm10 -> move(cb,z10) ; RWL10;
+
+CBXL = [inplay] short_pass(cb,lb); sw.cb.lb{call(switch,cb,lb)} -> CB;
+
+CBXR = [inplay] short_pass(cb,rb); sw.cb.rb{call(switch,cb,rb)} -> CB;
+
+// D6 will follow CB to z11 and z9 z6 and z8 z12
+// D6 may intercept move_wball to z10 etc
+
+// As above the following are example where the role is wrong. There is no CB at z11 role on only RB
+
+//CB11 = [aloc[cb] == 11]  pcase {
+//  10 : cb_shot -> shot(cb)
+//  20: cbm7 -> move_wball(cb, z7); CB
+//  20: cbm10 -> move_wball(cb, z10); CB
+//  20: cbm6 -> move_wball(cb, z6); CB
+//  10: cb_rb -> short_pass(cb, rb); RB
+//  10: cb_lb -> long_pass(cb, lb); LB
+//  10 : cb_rw -> short_pass(cb,rw); RW
+//};
+//
+//
+//CB9 = [aloc[cb] == 9]  pcase {
+//  10 : cb_shot -> shot(cb)
+//  20: cbm7 -> move_wball(cb, z7); CB
+//  20: cbm10 -> move_wball(cb, z10); CB
+//  20: cbm8 -> move_wball(cb, z8); CB
+//  10: cb_lb -> short_pass(cb, lb); LB
+//  10: cb_rb -> long_pass(cb, rb); RB
+//  10 : cb_lw -> short_pass(cb,lw); LW
+//};
+
+// should probably allow move to z4 depending on gaps
+// also there should be a pivot pass option
+
+CB6 = [aloc[cb] == 6]  pcase {
+  15 : cb_shot -> shot(cb)
+  20: cbm10 -> move_wball(cb, z10); CB
+  20: cbm7 -> move_wball(cb, z7); CB
+  15: cb_lb -> long_pass(cb, lb); LB
+  15: cb_rb -> short_pass(cb, rb); RB
+  15: cb_rw -> short_pass(cb,rw); RW
+};
+
+CB8 = [aloc[cb] == 8]  pcase {
+  15 : cb_shot -> shot(cb)
+  20: cbm10 -> move_wball(cb, z10); CB
+  20: cbm7 -> move_wball(cb, z7); CB
+  15: cb_rb -> long_pass(cb, rb); RB
+  15: cb_lb -> short_pass(cb, lb); LB
+  15: cb_rw -> short_pass(cb,rw); RW
+};
+
+CB12 =  [aloc[cb] == 12]  pcase {
+  2 : cb_shot -> shot(cb)
+  38: cbm10 -> move_wball(cb, z10); CB
+  30: cb_rb -> short_pass(cb, rb); RB
+  30: cb_lb -> short_pass(cb, lb); LB
+};
+
+// This allows complex plays from the beginning. // need to factor out the prob of choice. (is this a dependent choice?)
+
+CBfirst = CB10PC;
+
+CB = [inplay] (CB2 [] CB3 [] CB4 [] CB7 [] CB10gaps [] CB10Play [] CB11 [] CB6 [] CB9 [] CB8 [] CB12);
+
+
+PV234 =  [(aloc[pv] == z3 && ball == z3) || (aloc[pv] == z2 && ball == z2) || (aloc[pv] == z4 && ball == z4) ]
+ case {
+   aloc[pv] == z3 && gap[d3] == 1 : pv_openshot -> shot(pv)
+   aloc[pv] == z2 && gap[d2] == 1 : pv_openshot -> shot(pv)
+   aloc[pv] == z4 && gap[d4] == 1 : pv_openshot -> shot(pv)
+   (gap[d3] == 0 && aloc[pv] == z3) 
+   || (gap[d2] == 0 && aloc[pv] == z2) 
+   || (gap[d4] == 0 && aloc[pv] == z4)  : pcase {
+     50 : pv_shot -> shot(pv)
+     35 : pvm7 -> move_wball(pv,z7); PV
+     5 : pv_cb -> short_pass(pv,cb) ; CB
+     5 : pv_lb -> short_pass(pv,lb) ; LB
+     5 : pv_rb -> short_pass(pv,rb) ; RB     
+} default : undef -> Skip }; 
+
+// PVL10 missing move_wball
+// D6 will prevent this
+
+PVL10 =  [aloc[pv] == z10 && ball == z10]
+ case {
+   gap[d3] == 1 : pv_openshot -> shot(pv)
+   gap[d3] == 0 : pcase {
+     5 : pv_shot -> shot(pv)
+     5 : pv_cb -> short_pass(pv,cb) ; pvm2 -> move(pv,z2); CB
+     85 : pv_lb -> short_pass(pv,lb) ; pvm2 -> move(pv,z2); LB
+     5 : pv_rb -> short_pass(pv,rb); pvm2 -> move(pv,z2); RB
+} default : undef -> Skip }; 
+
+PVR10 =  [aloc[pv] == z10 && ball == z10]
+ case {
+   gap[d3] == 1 : pv_openshot -> shot(pv)
+   gap[d3] == 0 : pcase {
+     5 : pv_shot -> shot(pv)
+     5 : pv_cb -> short_pass(pv,cb) ; pvm4 -> move(pv,z4); CB
+     5 : pv_lb -> short_pass(pv,lb) ; pvm4 -> move(pv,z4); LB
+     85 : pv_rb -> short_pass(pv,rb) ; pvm4 -> move(pv,z4); RB
+} default : undef -> Skip }; 
+
+// D6 may steal ball move to line
+// D6 may prevent movement to line
+// D6 
+// PV7 may block D6 - assisitng CB to get through
+
+PV7 = [aloc[pv] == z7 && ball == z7]
+ case {
+    gap[d2] == 1 : pvm2 -> move_wball(pv,z2); PV
+    gap[d3] == 1 : pvm3 -> move_wball(pv,z3); PV
+    gap[d4] == 1 : pvm4 -> move_wball(pv,z4); PV
+    gap[d3] == 0 : pcase {
+      40: pv_shot -> shot(pv)
+      20 : pv_cb -> short_pass(pv,cb) ; pvm3 -> move(pv,z3); CB
+      20 : pv_lb -> short_pass(pv,lb) ; pvm3 -> move(pv,z3); LB 
+      20 : pv_rb -> short_pass(pv,rb) ; pvm3 -> move(pv,z3); RB 
+    }
+};
+
+PV = [inplay] ( PV234 [] PVL10 [] PVR10 [] PV7 ); 
+
+// I've not included a PV6  or 8.
+
+//D6 will try to interfere with pass LB to CB
+//D6 will force CB out to CB10 from CB7 by preventing LB pass to CB7
+//ditto for RB
+//Need to add more movement for LB/RB 
+//Need to allow  simple cross with CB  (and switch)
+//D6 may prevent crosses
+
+LB8 = [aloc[lb] == z8 && ball == z8]
+ case {
+   gap[d2] == 1 : pcase {
+      20 : lb_openshot -> shot(lb)
+      20 : lbm2 -> move_wball(lb,z2); LB
+      20 : lb_cb -> short_pass(lb,cb); CB
+      15 : lb_lw -> short_pass(lb,lw); LW
+      15 : lb_pv -> short_pass(lb,pv); PV               
+      10 : lb_rb -> long_pass(lb,rb); RB   
+    }
+   gap[d2] == 0 : pcase {
+      15 : lb_shot -> shot(lb) 
+      45: lb_cb -> short_pass(lb,cb); CB                 
+      30: lb_lw -> short_pass(lb,lw); LW               
+      10 : lb_pv -> short_pass(lb,pv); PV
+      8 : lb_rb -> long_pass(lb,rb); RB
+      2 : lb_rw -> long_pass(lb,rw); RW
+ } default : undef -> Skip };
+ 
+ //loc[lb] > 7: mov_ball(lb, 7); LB
+LB9 = [aloc[lb] == z9 && ball == z9]
+ case {
+   gap[d2] == 1 : pcase {
+      20 : lb_openshot -> shot(lb)
+      30 : lbm8 -> move_wball(lb,z8); LB
+      30 : lb_cb -> short_pass(lb,cb); CB
+      5 : lb_lw -> short_pass(lb,lw); LW
+      5 : lb_pv -> short_pass(lb,pv); PV               
+      10 : lb_rb -> long_pass(lb,rb); RB   
+    }
+   gap[d2] == 0 : pcase {
+      15 : lb_shot -> shot(lb) 
+      45: lb_cb -> short_pass(lb,cb); CB                 
+      20: lb_lw -> short_pass(lb,lw); LW               
+      10 : lb_pv -> short_pass(lb,pv); PV
+      8 : lb_rb -> long_pass(lb,rb); RB
+      2 : lb_rw -> long_pass(lb,rw); RW
+ } default : undef -> Skip };
+ //loc[lb] > 7: mov_ball(lb, 7); LB
+
+LB2 =  [aloc[lb] == z2 && ball == z2]
+  case {
+    gap[d2] == 1 :  lb_openshot -> shot(lb)
+    gap[d2] == 0 : pcase {
+      50: lb_shot -> shot(lb)
+      50: lbm7 -> move_wball(lb, z7)
+   }
+};
+
+LB7 =  [aloc[lb] == z7 && ball == z7]
+  case {
+    gap[d3] == 1 :  lb_openshot -> shot(lb)
+    gap[d3] == 0 : pcase {
+      50: lb_shot -> shot(lb)
+      50: lbm8 -> move_wball(lb, z8)
+   }
+};
+
+LB = [inplay] ( LB8 [] LB9 [] LB2 [] LB7);
+
+
+RB6 = [aloc[rb] == z6 && ball == z6]
+ case {
+   gap[d4] == 1 : pcase {
+      20 : rb_openshot -> shot(rb)
+      20 : rbm4 -> move_wball(rb,z4); RB
+      20 : rb_cb -> short_pass(rb,cb); CB
+      15 : rb_rw -> short_pass(rb,rw); RW
+      15 : rb_pv -> short_pass(rb,pv); PV               
+      10 : rb_lb -> long_pass(rb,lb); LB   
+    }
+   gap[d4] == 0 : pcase {
+      15 : rb_shot -> shot(rb) 
+      45 : rb_cb -> short_pass(rb,cb); CB                 
+      20 : rb_rw -> short_pass(rb,rw); RW               
+      10 : rb_pv -> short_pass(rb,pv); PV
+      10 : rb_lb -> long_pass(rb,lb); LB
+ } default : undef -> Skip };
+// loc[rb] > 8: mov_ball(lb, 8); RB
+
+RB11 = [aloc[rb] == z11 && ball == z11]
+ case {
+   gap[d4] == 1 : pcase {
+      20 : rb_openshot -> shot(rb)
+      30 : rbm4 -> move_wball(rb,z4); RB
+      30 : rb_cb -> short_pass(rb,cb); CB
+      5 : rb_rw -> short_pass(rb,rw); RW
+      5 : rb_pv -> short_pass(rb,pv); PV               
+      10 : rb_lb -> long_pass(rb,lb); LB   
+    }
+   gap[d4] == 0 : pcase {
+      15 : rb_shot -> shot(rb) 
+      45 : rb_cb -> short_pass(rb,cb); CB                 
+      20 : rb_rw -> short_pass(rb,rw); RW               
+      10 : rb_pv -> short_pass(rb,pv); PV
+      8 : rb_lb -> long_pass(rb,lb); LB
+      2 : rb_lw -> long_pass(rb,lw); LW
+ } default : undef -> Skip };
+ 
+ RB4 =  [aloc[rb] == z4 && ball == z4]
+  case {
+    gap[d4] == 1 :  rb_openshot -> shot(rb)
+    gap[d4] == 0 : pcase {
+      50: rb_shot -> shot(rb)
+      50: rbm7 -> move_wball(rb, z7)
+   }
+};
+
+RB7 =  [aloc[rb] == z7 && ball == z7]
+  case {
+    gap[d3] == 1 :  rb_openshot -> shot(rb)
+    gap[d3] == 0 : pcase {
+      50: rb_shot -> shot(rb)
+      50: rbm8 -> move_wball(rb, z6)
+   }
+};
+ 
+RB = [inplay] ( RB6 [] RB11 [] RB4 [] RB7 ) ;
+
+// D6 will prevent pass Wing to CB7 and CB10 - ok for CS12  (like a throw in)
+
+LW1 = [aloc[lw] == z1 && ball == z1]
+ case {
+   gap[d1] == 1 : lw_openshot -> shot(lw)
+   gap[d2] == 1 : lwm2 -> move_wball(lw,z2); LW
+   gap[d1] == 0 : pcase {
+     14 : lw_shot -> shot(lw)
+     62 : lw_lb -> short_pass(lw,lb) ; LB
+     20 : lwm8 -> move_wball(lw,z8) ; LW
+     2 : lw_pv -> pivot_pass(lw,pv) ; PV
+     2 : lw_rw -> long_pass(lw,rw) ; RW
+} default : undef -> Skip }; 
+ 
+LW8 = [aloc[lw] == z8 && ball == z8]
+ case {
+   gap[d2] == 1 : lw_openshot -> shot(lw)
+   gap[d1] == 1 : lwm1 -> move_wball(lw,z1) ; LW
+   gap[d2] == 0 : pcase {
+     5 : lw_shot -> shot(lw)
+     52 : lw_lb -> short_pass(lw,lb) ; LB
+     10 : lw_cb -> short_pass(lw,cb) ; CB
+     10 : lwm1 -> move_wball(lw,z1) ; LW
+     10 : lwm7 -> move_wball(lw,z7) ; LW
+     3 : lw_pv -> pivot_pass(lw,pv) ; PV
+} default : undef -> Skip }; 
+
+LW2 = [aloc[lw] == z2] 
+  case {
+   gap[d2] == 1 : lw_openshot -> shot(lw)
+   gap[d2] == 0 : pcase {
+   30 : lw_shot -> shot(lw)
+   30 : lw_lb -> short_pass(lw,lb) ; LB
+   10 : lw_cb -> short_pass(lw,cb) ; CB
+   20 : lwm1 -> move_wball(lw,z1) ; LW
+   10 : lw_pv -> pivot_pass(lw,pv) ; PV
+} default : undef -> Skip }; 
+
+LWR10 = [aloc[lw] == z10]
+ case {
+   gap[d3] == 1 : pcase {
+   20: lw_openshot -> shot(lw)
+   80: lwm7 ->  move_wball(lw, z7); LW7
+   }
+   gap[d3] == 0 : pcase {
+     5 : lw_shot -> shot(lw)
+     5 : lwm7 -> move_wball(lw, z7) ; LW
+     5 : lw_cb -> short_pass(lw,cb) ; tr.lw.pv2 {call(trans,lw,pv2) } -> pv2m4 -> move(pv2,z4); CB
+     5 : lw_lb -> short_pass(lw,lb) ; tr.lw.pv2 {call(trans,lw,pv2)} -> pv2m4 -> move(pv2,z4); LB
+     80 : lw_rb -> short_pass(lw,rb) ; tr.lw.pv2 {call(trans,lw,pv2)} -> pv2m4 -> move(pv2,z4); RB
+} default : undef -> Skip }; 
+
+LW7 = [aloc[lw] == z7] 
+  case {
+   gap[d3] == 1 : lw_openshot -> shot(lw)
+   gap[d3] == 0 : pcase {
+   30 : lw_shot -> shot(lw)
+   30 : lw_rb -> short_pass(lw,rb) ; tr.lw.pv2 {call(trans,lw,pv2) } -> pv2m4 -> move(pv2,z4); RB
+   10 : lw_cb -> short_pass(lw,cb) ; tr.lw.pv2 {call(trans,lw,pv2) } -> pv2m3 -> move(pv2,z3); CB
+   10 : lw_lb -> short_pass(lw,lb) ; tr.lw.pv2 {call(trans,lw,pv2) } -> pv2m3 -> move(pv2,z3); LB
+   20 : lwm1 -> move_wball(lw,z1) ; LW
+   10 : lw_pv -> pivot_pass(lw,pv); lwm1 -> move(lw,z1) ; PV
+} default : undef -> Skip }; 
+
+ 
+LW =  [inplay] ( LW1 [] LW2 [] LW8 [] LW7 );
+
+RW5 = [aloc[rw] == z5 && ball == z5 ]
+ case {
+   gap[d5] == 1 : rw_openshot -> shot(rw)
+   gap[d4] == 1 : rwm4 -> move_wball(rw,z4); RW
+   gap[d5] == 0 : pcase {
+     14 : rw_shot -> shot(rw)
+     62 : rw_rb -> short_pass(rw,rb) ; RB
+     20 : rwm8 -> move_wball(rw,z8) ; RW
+     2 : rw_pv -> pivot_pass(rw,pv) ; PV
+     2 : rw_lw -> long_pass(rw,lw) ; LW
+} default : undef -> Skip }; 
+ //loc[rw] == 8 && gap[d5] == 1 : mov_ball(rw, 5); RW
+ 
+ RW6 = [aloc[rw] == z6 && ball == z6]
+ case {
+   gap[d4] == 1 : rw_openshot -> shot(rw)
+   gap[d5] == 1 : rwm1 -> move_wball(rw,z5) ; RW
+   gap[d4] == 0 : pcase {
+     5 : rw_shot -> shot(lw)
+     52 : rw_rb -> short_pass(rw,rb) ; RB
+     10 : rw_cb -> short_pass(rw,cb) ; CB
+     10 : rwm5 -> move_wball(rw,z5) ;RW
+     10 : rwm7 -> move_wball(rw,z7) ; RW
+     3 : rw_pv -> pivot_pass(rw,pv) ; PV
+} default : undef -> Skip }; 
+
+RW4 = [aloc[rw] == z4] 
+  case {
+   gap[d4] == 1 : rw_openshot -> shot(rw)
+   gap[d4] == 0 : pcase {
+   30 : rw_shot -> shot(rw)
+   30 : rw_rb -> short_pass(rw,rb) ; RB
+   10 : rw_cb -> short_pass(rw,cb) ; CB
+   20 : rwmr -> move_wball(rw,z5) ; RW
+   10 : rw_pv -> pivot_pass(rw,pv) ; PV
+} default : undef -> Skip }; 
+
+ 
+ RWL10 = [aloc[rw] == z10]
+ case {
+   gap[d3] == 1 : pcase {
+   20: rw_openshot -> shot(rw)
+   80: rwm7 ->  move_wball(rw, z7); RW7
+   }
+   gap[d3] == 0 : pcase {
+     5 : rw_shot -> shot(rw)
+     5 : rwm7 -> move_wball(rw, z7) ; RW
+     5 : rw_cb -> short_pass(rw,cb) ; tr.rw.pv2 {call(trans,rw,pv2) } -> pv2m2 -> move(pv2,z2); CB
+     5 : rw_rb -> short_pass(rw,rb) ; tr.rw.pv2 {call(trans,rw,pv2)} -> pv2m2 -> move(pv2,z2); RB
+     80 : rw_lb -> short_pass(rw,lb) ; tr.rw.pv2 {call(trans,rw,pv2)} -> pv2m2 -> move(pv2,z2); LB
+} default : undef -> Skip }; 
+
+RW7 = [aloc[rw] == z7] 
+  case {
+   gap[d3] == 1 : rw_openshot -> shot(rw)
+   gap[d3] == 0 : pcase {
+   30 : rw_shot -> shot(rw)
+   30 : rw_lb -> short_pass(rw,lb) ; tr.lw.pv2 {call(trans,rw,pv2) } -> pv2m2 -> move(pv2,z2); LB
+   10 : rw_cb -> short_pass(rw,cb) ; tr.lw.pv2 {call(trans,rw,pv2) } -> pv2m3 -> move(pv2,z3); CB
+   10 : rw_rb -> short_pass(rw,rb) ; tr.lw.pv2 {call(trans,rw,pv2) } -> pv2m3 -> move(pv2,z3); RB
+   20 : rwm5 -> move_wball(rw,z5) ; RW
+   10 : rw_pv -> pivot_pass(rw,pv); rwm5 -> move(rw,z5) ; PV
+} default : undef -> Skip }; 
+
+
+RW = [inplay] ( RW5 [] RW4 [] RW6 [] RW7 );
+
+
+// D6 may try to intercept passes PV2 to CB
+// D6 may prevent PV movement
+
+P2V234 = [(aloc[pv2] == z3 && ball == z3) || (aloc[pv2] == z2 && ball == z2) || (aloc[pv2] == z4 && ball == z4) ]
+ case {
+   aloc[pv2] == z3 && gap[d3] == 1 : pv2_openshot -> shot(pv2)
+   aloc[pv2] == z2 && gap[d2] == 1 : pv2_openshot -> shot(pv2)
+   aloc[pv2] == z4 && gap[d4] == 1 : pv2_openshot -> shot(pv2)
+   (gap[d3] == 0 && aloc[pv2] == z3) 
+   || (gap[d2] == 0 && aloc[pv2] == z2) 
+   || (gap[d4] == 0 && aloc[pv2] == z4)  : pcase {
+     50 : pv2_shot -> shot(pv2)
+     35 : pv2m7 -> move_wball(pv2,z7); PV2
+     5 : pv2_cb -> short_pass(pv2,cb) ; CB
+     5 : pv2_lb -> short_pass(pv2,lb) ; LB
+     5 : pv2_rb -> short_pass(pv2,rb) ; RB     
+} default : undef -> Skip }; 
+
+PV27 = [aloc[pv2] == z7 && ball == z7]
+ case {
+    gap[d2] == 1 : pv2m2 -> move_wball(pv2,z2); PV2
+    gap[d3] == 1 : pv2m3 -> move_wball(pv2,z3); PV2
+    gap[d4] == 1 : pv2m4 -> move_wball(pv2,z4); PV2
+    gap[d3] == 0 : pcase {
+      40: pv2_shot -> shot(pv2)
+      20 : pv2_cb -> short_pass(pv2,cb) ; pv2m3 -> move(pv2,z3); CB
+      20 : pv2_lb -> short_pass(pv2,lb) ; pv2m3 -> move(pv2,z3); LB 
+      20 : pv2_rb -> short_pass(pv2,rb) ; pv2m3 -> move(pv2,z3); RB 
+    }
+};
+
+PV2 =  [inplay] ( P2V234 [] PV27 );
+
+
+// =============== DEFENCE ================
+
+D3 = pcase  { 
+      15 : d2_gap {gap[d1]=0;gap[d2]=1;gap[d3]=0;gap[d4]=0;gap[d5]=0} -> Skip
+      15 : d3_gap {gap[d1]=0;gap[d2]=0;gap[d3]=1;gap[d4]=0;gap[d5]=0} -> Skip
+      15 : d4_gap {gap[d1]=0;gap[d2]=0;gap[d3]=0;gap[d4]=1;gap[d5]=0} -> Skip
+      65 : d_def {gap[d1]=0;gap[d2]=0;gap[d3]=0;gap[d4]=0;gap[d5]=0} -> Skip
+};
+
+#define resgap5 {gap[d1] = 0; gap[d2] = 0; gap[d3] = 0; gap[d4] = 0; gap[d5] = 0};
+
+#define resgap6 {gap[d1] = 0; gap[d2] = 0; gap[d3] = 0; gap[d4] = 0; gap[d5] = 0; gap[d6] = 0};
+
+#define wgap(p) {if (admap[aloc[p]] <= 3) {gap[d5] = 1} else {gap[d1] = 1}};  // biased to rw for d3  - should make it fair
+
+//#alphabet CloseGap {gc.d1,gc.d2,gc.d3,gc.d4,gc.d5,gc.d6,go.d1,go.d2,go.d3,go.d4,go.d5,go.d6}; 
+
+// !TODO resgap means that holes always close on wings once pass back to backs
+// need to allow either twoholes or gaps to appear away from play
+// FIXED - but now it possible to have 5 gaps - should really always be 1 gap in 6-0
+// Gap should always be on a wing
+
+
+CloseGap(x) = pcase {
+  [0.1] : gca.x {resgap5} -> DEF6o2  // No Gaps
+  [0.5] : gcwo.x {resgap5; call(wgap,x)} -> DEF6o2  // Closes Gap in front of player but leaves a gap on the furtherest wing
+  [0.2] : go.x {resgap5; gap[admap[aloc[x]]] = 1} -> DEF6o2  // 1 Gap in front of player but none elsewhere
+  [0.2] : gowo.x  {resgap5;call(wgap,x); gap[admap[aloc[x]]] = 1} -> DEF6o2  // 1 Gap in front of player and one on furtherest wing
+};
+
+CloseLoc(x) = pcase {
+ 10 : gca.x {resgap5} -> DEF6o2  // No Gaps
+ 90 : go.x {resgap5; gap[admap[x]] = 1} -> DEF6o2 
+};
+
+//#alphabet CloseGap { gca, gcwo, go, gowo };
+
+
+//Defclw = pcase { [0.5] : cb_lw -> {resgap; gap[d1] = 0} -> DEF6o
+//                 [0.5] : cb_lw -> {resgap; gap[d1] = 1} -> DEF6o  
+//               };
+
+// DEF1 = []x:{0..4}@CloseGap(x);
+
+
+// ARCHIVE THIS
+
+DEF6o =
+ cb_lb -> CloseGap(lb) []
+ cb_rb -> CloseGap(rb) []
+ cb_rw -> CloseGap(rw) []
+ cb_lw -> CloseGap(lw) []
+ cb_pv -> CloseGap(pv) []   
+ lb_cb -> CloseGap(cb) []
+ lb_lw -> CloseGap(lw) []
+ lb_pv -> CloseGap(pv) [] 
+ lb_rb -> CloseGap(rb) []
+ lb_rw -> CloseGap(rw) []
+ rb_cb -> CloseGap(cb) []
+ rb_pv -> CloseGap(pv) []  
+ rb_rw -> CloseGap(rw) []
+ rb_lb -> CloseGap(lb) []
+ rb_lw -> CloseGap(lw) []
+ lw_lb -> CloseGap(lb) []
+ lw_cb -> CloseGap(cb) []
+ lw_rw -> CloseGap(rw) []
+ rw_rb -> CloseGap(rb) []
+ rw_cb -> CloseGap(cb) []
+ rw_lw -> CloseGap(lw) []
+ pv_cb -> CloseGap(cb) []
+ pv_lb -> CloseGap(lb) []
+ pv_rb -> CloseGap(rb) []
+ cbm10 -> CloseGap(rb) []
+ cbm7  -> CloseGap(cb) []
+ cbm8  -> CloseGap(cb) []
+ cbm6  -> CloseGap(cb) []
+ cbm9  -> CloseGap(cb) []
+ cbm11 -> CloseGap(cb) []
+ pvm2 ->  CloseGap(pv) []
+ pvm3 ->  CloseGap(pv) []
+ pvm4 ->  CloseGap(pv) []
+ pvm7 ->  CloseGap(pv) []
+ pvm10 -> CloseGap(pv) []
+ pvxl  -> DEF6o        []  // should just do nothing in these cases - wait until the PC or CB moves
+ pvxr  -> DEF6o        []
+ cbexl -> DEF6o        []
+ cbexr -> DEF6o        ;
+ 
+//DEF6o2() =  // spass?cb.pv -> CloseGap(pv) []  
+//  spass?lb.pv -> CloseGap(pv) []  
+//  spass?cb.lb -> CloseGap(lb);
+
+ //DEF6o2 = ([]y:{0..5}@([]x:{0..5}@spass?y.x -> CloseGap(x))) [] 
+ //         ([]y:{0..5}@([]x:{0..5}@lpass?y.x -> CloseGap(x))) [] 
+ //         ([]y:{0..5}@([]x:{0..5}@mov?y.x -> CloseGap(x))) [] 
+ //         ([]y:{0..5}@([]x:{0..5}@ppass?y.x -> CloseGap(x))); 
+
+ DEF6o2 = spass?y.x -> CloseGap(x) []
+          lpass?y.x -> CloseGap(x) []
+          ppass?y.x -> CloseGap(x) []
+          movb?y.x -> CloseGap(y)  []
+          mov?y.x -> CloseGap(y);
+          
+ DEF51 = spass?y.x -> Close51Gap(x) []
+         lpass?y.x -> Close51Gap(x) []
+         ppass?y.x -> Close51Gap(x) []
+         movb?y.x -> Close51Gap(y)  []
+         mov?y.x -> Close51Gap(y);
+ 
+// 5-1 : bring in gap[6] in front
+// defence for lw, rw pv is the same: close the gap 
+// defence for lb rb is the same in terms of gap point want to intercept
+// defence for CB - closegap d6
+
+Close51Gap(x) =  case {
+ x == lw || x == rw  ||  x == lb || x == rb : pcase {
+    90 :  gc.x {resgap6; call(wgap,x)} -> DEF51  // gap closes but open on other wing
+    10 :  go.x {resgap6; call(wgap,x); gap[admap[aloc[x]]] = 1} -> DEF51// gap open and on other wing
+    }
+ x == pv : pcase {
+    80 :  gc.x {resgap6; gap[d6] = 1 } -> DEF51  // gap closes but gap open at front
+    10 :  go.x {resgap6; gap[d6] = 1; gap[admap[aloc[x]]] = 1  } -> DEF51
+    10 :  go.x {resgap6; gap[admap[aloc[x]]] =1  } -> DEF51  // gap open and still closed in front
+    }
+ x == pv2 : pcase {
+    80 :  gc.x {resgap6; gap[d6] = 1 } -> DEF51  // gap closes but gap open at front
+    10 :  go.x {resgap6; gap[d6] = 1; gap[admap[aloc[x]]] = 1  } -> DEF51
+    10 :  go.x {resgap6; gap[admap[aloc[x]]] =1  } -> DEF51  // gap open and still closed in front
+    }   
+ x == cb : pcase {
+    40 :  gc.x {resgap6} -> DEF51  // gap closes at front
+    30 :  g0.x {resgap6; gap[d6] = 1} -> DEF51  // gap open at front
+    10 :  g0.x {resgap6; gap[d2] = 1} -> DEF51  // gap closed at front but open behind
+    10 :  g0.x {resgap6; gap[d3] = 1} -> DEF51  // gap closed at front but open behind
+    10 :  g0.x {resgap6; gap[d3] = 1} -> DEF51  // gap closed at front but open behind
+    }
+}; 
+
+// Defcmv(l) = mov.cb.l -> CloseGap(l);   //TODO - how to do this? chanel? choice over l
+      
+//DEF6o = Defclb [] Defcrb [] Defcrw [] Defclw [] Defrcb [] Deflcb [] Defcpv [] Defwlb [] Defwrb [] Deflcb [] Defrcb [] Deflpv [] Defrpv [] Defpvc;
+
+
+// how to add 5-1 - and this is someone out at 9m.
+// Need to create an extra gap out in front or make the gaps bigger.
+// Either there is a gap at 9m or an extra gap at 6m
+
+// lb_cb -> defender at 10 or not CloseGap(d10) - maybe there is a chance of intercept if they are in the same loc.
+// lb_pv -> CloseGap(loc[pv])  - maybe this is an intercept if there is defender on pv (otherwise they are free)
+
+// lb_pv -> (loc(d10) == loc(cb) : intercept(d10,cb)
+//           loc(d10) != loc(cb) : CloseGap(loc[cb])
+
+// DEF51 =  
+
+
+
+AD = CBfirst ||| DEF6o2;
+
+#define scoregoal score > 0;
+#define scorequick (score > 0 && pass < 3);
+#define scorefast (score > 0 && pass < 5);
+#define passive pass == maxpass;
+#define lose (passive || ball == zout);
+#define notpassive (pass < maxpass);
+#define twoholes gap[d1] + gap[d2] + gap[d3] + gap[d4] + gap[d5] > 1;
+#define lwgap aloc[cb] == z10 && gap[d1] == 1;
+#define twogapsgoal twoholes && scorequick;
+
+#assert AD reaches scoregoal;
+//#assert AD reaches scoregoal with prob;
+#assert AD reaches scoregoal with min(pass);
+#assert AD reaches scoregoal with max(pass);
+
+#assert AD reaches scorefast;
+#assert AD reaches scorefast with pmin;
+#assert AD reaches scorefast with prob;
+#assert AD |= F(scorefast) with prob;
+
+#assert AD reaches scorequick;
+#assert AD reaches scorequick with pmin;
+#assert AD reaches scorequick with prob;
+#assert AD |= F(scorequick) with prob;
+
+
+#assert AD |= [] <> undef;
+#assert AD |= [] <> !undef;
+
+#assert AD reaches twoholes;
+#assert AD reaches twogapsgoal;
+#assert AD reaches twogapsgoal with prob;
+#assert AD reaches lwgap;
+
+#assert AD |= G(!cbxl);
+#assert AD |= G(!cbxl) || !F(scorequick);
+#assert AD |= F(cbxl) && F(scorequick) with prob;
+
+#assert AD |= G(!cbxr);
+#assert AD |= G(!cbxr) && !F(scorequick);
+#assert AD |= F(cbxr) && F(scorequick) with prob;
+
+#assert AD |= F(pvxl) && X F(scoregoal) with prob;
+
+#assert AD |= G(!pvxl);
+
+#assert AD |= F(pvxl) with prob;
+
+#assert AD |= G(!lw2pv);
+#assert AD |= F(lw2pv) with prob;
+#assert AD |= F(lw2pv) && X F (scorefast) with prob;
+
+#assert AD |= G(!lw2pv) || !F(scorefast); 
+#assert AD |= G(!lw2pv) || !F(scorequick); 
+
+#assert AD |= G(!pv2_openshot);
+#assert AD |= G(!pv2_openshot) with prob;
+
+#assert AD |= G(!pv2_openshot) ||  !F(scorefast);
+#assert AD |= F(pv2_openshot) && F(scorefast) with prob;
+
+
+#assert AD|= G(!lwm2);
+#assert AD|= G(!lwm2) ||  !F(scorefast);
+
+#assert AD|= G(!lwm8);
+#assert AD|= G(!lwm8) ||  !F(scorefast);
+
+#assert AD|= G(!lwm7);
+#assert AD|= G(!lwm7) ||  !F(scorefast);
+
+
+//#assert AD|= G(!mvlw2);
+//#assert AD|= G(!mvlw2) ||  !F(scorefast);
+
+#assert AD |= G(!cbm10);
+#assert AD |= G(!cbm10) || !F(scorequick);
+
+
+
+#assert AD |= G(!cb_pv);
+#assert AD |= G(!cb_pv) || !F(scoregoal);
+
+#assert AD |= G(!cb_pv) ||  G(!scorefast);
+
+#assert AD |= G(!cb_lw) || !F(scorefast);
+
+#assert AD |= G(!cb_rb) || !F(scorequick);
+
+#assert AD |= G(!pvxl) || G(!scoregoal);
+
+#assert AD |= (G(!pvxl) || G(!rb_shot)) || G(!scoregoal);
+
+#assert AD |= G(!cbexl) || !F(scorefast);
+
+#assert AD |= F(cbexl) && X F(scorequick) with prob;
+
+#assert AD |= (G(!pvxl) || G(!cb_shot)) || !F(scorequick);
+
+#assert AD |= G(!cb_shot) ||  !F(scorequick);
+
+#assert AD |= G(!cb_openshot) ||  !F(scorequick);
+
+#assert AD |= G(!rb_shot) ||  !F(scorequick);
+
+#assert AD |= G(!lb_shot) ||  !F(scorequick);
+
+#assert AD |= G(!lw_shot) ||  !F(scorequick);
+
+#assert AD |= G(!rw_shot) ||  !F(scorequick);
+
+#assert AD |= G(!pv_shot) ||  !F(scorequick);
+
+#assert AD |= G(!rbm4) ||  !F(scorequick);
+
+#assert AD |= F(rbm4) && X F(scorequick) with prob;
+
+#assert AD |= G(!lbm2) ||  !F(scorequick);
+
+#assert AD |= F(lbm2) && X F(scorequick) with prob;
+
+
+
+#assert AD reaches scoregoal with prob;
+#assert AD |= F(pvxl  || pvxr) && X F(scoregoal) with prob;
+#assert AD |= F(lw2pv || rw2pv) && X F (scoregoal) with prob;
+#assert AD |= F(cbexl  || cbexr) && X F (scoregoal) with prob;
+#assert AD |= F(cbxl  || cbxr) && X F (scoregoal) with prob;
